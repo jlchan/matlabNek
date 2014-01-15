@@ -8,9 +8,9 @@
 
       [z,w] = zwgll(N);
 
-      Bh    = diag(w);
-      Dh    = Dhat(z);
+      Bh    = diag(w); % diag of weights (mass matrix)
+      Dh    = Dhat(z); % derivative matrix
 
-      Ah    = Dh'*Bh*Dh;
-      Ch    = Bh*Dh;
+      Ah    = Dh'*Bh*Dh; % stiffness matrix
+      Ch    = Bh*Dh; % convection matrix
 
