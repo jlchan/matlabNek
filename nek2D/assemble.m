@@ -1,7 +1,7 @@
 % N = 10; % order
 % K = 16; % num elems
 
-function [Mg, Kg, Cg, bcInds, u0] = assemble(N,K)
+function [Mg, Kg, Cg, bcInds, fg, u0] = assemble(N,K)
 
 if (nargin<2)
    N = 4;
@@ -54,84 +54,85 @@ b = @(y) 5*(y-.5);
 c = @(x) -5*(x-.5);
 d = @(y) ones(size(y));
 
-Fx = @(x) 0*x.^2;
-Fy = @(y) 0*y.^2;
+% some nonconst nonzero forcing
+Fx = @(x) .5*exp(x);
+Fy = @(y) y.^2;
 
 % 1D matrices and GLL points
 [Ah,Bh,Ch,Dh,z,w] = SEMhat(N);       
 
+% preassemble element mass/stiffness matrices
+Jx = dx/2; Jy = dy/2;
+M = zeros(Nq2,Nq2);
+K = zeros(Nq2,Nq2);
+for i = 1:Nq
+    for j = 1:Nq
+        r = i + Nq*(j-1);                
+        % diagonal mass
+        M(r,r) = Jx*Jy*w(i)*w(j);
+        
+        % delta_jl -> j = l, loop over k
+        for k = 1:Nq
+            l = j;
+            q = k + Nq*(l-1);
+            K(r,q) = K(r,q) + ...
+                Ah(i,k)*w(j);
+            
+        end
+        % delta_ik -> i = k, loop over l
+        for l = 1:Nq
+            k = i;
+            q = k + Nq*(l-1);
+            K(r,q) = K(r,q) + ...
+                Ah(j,l)*w(i);
+        end
+        
+    end
+end
+
+% assemble global mass/stiffness/convection (also local)
 Mg = sparse(numdofs,numdofs);
 Kg = sparse(numdofs,numdofs);
 Cg = sparse(numdofs,numdofs);
 fg = zeros(numdofs,1);
 for kx = 1:Kx
-    for ky = 1:Ky
-        
+    for ky = 1:Ky        
         Jx = dx/2; Jy = dy/2;
         % assemble element matrices
-        M = sparse(Nq2,Nq2);
-        K = zeros(Nq2,Nq2);
         C = sparse(Nq2,Nq2);
-%         f = zeros(Nq2,1);
         xp = dx*(z+1)/2 + dx*(kx-1);
         yp = dy*(z+1)/2 + dy*(ky-1);
         for i = 1:Nq
             for j = 1:Nq
-                r = i + Nq*(j-1);
-                
-                % building f
-                f(r) = Jx*Jy*w(i)*w(j)*Fx(xp(i))*Fy(yp(j));
-                
-                % diagonal mass
-                M(r,r) = Jx*Jy*w(i)*w(j);
-                
+                r = i + Nq*(j-1);                
                 % delta_jl -> j = l, loop over k
                 for k = 1:Nq
                     l = j;
                     q = k + Nq*(l-1);
-                    K(r,q) = K(r,q) + ...
-                        Ah(i,k)*w(j);
                     C(r,q) = C(r,q) + ...
-                        Jy*a(xp(i))*b(yp(j))*w(j)*w(i)*Dh(i,k);
-                    
+                        Jy*a(xp(i))*b(yp(j))*w(j)*w(i)*Dh(i,k);                    
                 end
                 % delta_ik -> i = k, loop over l
                 for l = 1:Nq
                     k = i;
                     q = k + Nq*(l-1);
-                    K(r,q) = K(r,q) + ...
-                        Ah(j,l)*w(i);
                     C(r,q) = C(r,q) + ...
                         Jx*c(xp(i))*d(yp(j))*w(i)*w(j)*Dh(j,l);
-                end
-                
+                end                
             end
-        end                
-    
+        end                    
         elem_offset = ((ky-1)*Kx + (kx-1))*Nq2;
         local_inds = 1:Nq2;
         inds = galnums(elem_offset + local_inds);
         Kg(inds,inds) = Kg(inds,inds) + K;
         Mg(inds,inds) = Mg(inds,inds) + M;
         Cg(inds,inds) = Cg(inds,inds) + C;
-%         fg(inds) = fg(inds) + f;
+        %fg(inds) = fg(inds) + f;
         disp(['kx = ',num2str(kx), ', ky = ', num2str(ky)])
     end
 end
 Nqkx = kx*(Nq-1) + 1; % num global dofs along x line
 Nqky = ky*(Nq-1) + 1; % num global dofs along y line
-bottom = 1:Nqkx;
-left = (0:Nqky-1)*Nqkx + 1;
-right = (1:Nqky)*Nqkx;
-top = (numdofs-Nqkx):numdofs;
-bcInds = unique([bottom, left, right, top]);
-bcInds = unique([bottom, left]);
-
-% Dirichlet BCs
-Kg(bcInds,:) = zeros(size(Kg(bcInds,:)));
-Kg(:,bcInds) = zeros(size(Kg(:,bcInds)));
-Kg(bcInds,bcInds) = eye(length(bcInds));
-fg(bcInds) = 0;
 
 % define physical points
 xx = 0; %starting x point
@@ -150,6 +151,35 @@ end
 x0 =0.6; y0=0.3; delta = 0.10; R=(X-x0).^2+(Y-y0).^2;
 U0 = exp(-((R./(delta^2)).^1)).*X.*(1-X).*Y.*(1-Y); % pulse * bubble
 u0 = reshape(U0,Nqkx*Nqky,1); 
+
+% forcing 
+F = Fx(X).*Fy(Y);
+f = reshape(F,Nqkx*Nqky,1);
+fg = Mg*f;
+
+% BCs
+bottom = 1:Nqkx;
+left = (0:Nqky-1)*Nqkx + 1;
+right = (1:Nqky)*Nqkx;
+top = (numdofs-Nqkx):numdofs;
+bcInds = unique([bottom, left, right, top]);
+% bcInds = unique([bottom, left]);
+
+% % Dirichlet BCs
+Cg(bcInds,:) = zeros(size(Cg(bcInds,:)));
+Cg(:,bcInds) = zeros(size(Cg(:,bcInds)));
+Cg(bcInds,bcInds) = eye(length(bcInds));
+
+Mg(bcInds,:) = zeros(size(Mg(bcInds,:)));
+Mg(:,bcInds) = zeros(size(Mg(:,bcInds)));
+Mg(bcInds,bcInds) = eye(length(bcInds));
+
+Kg(bcInds,:) = zeros(size(Kg(bcInds,:)));
+Kg(:,bcInds) = zeros(size(Kg(:,bcInds)));
+Kg(bcInds,bcInds) = eye(length(bcInds));
+
+fg(bcInds) = 0;
+u0(bcInds) = 0;
 
 % fg_t =  fg + (1/dt)*Mg*u0;
 
