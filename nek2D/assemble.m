@@ -1,12 +1,14 @@
 % N = 10; % order
 % K = 16; % num elems
 
-function [Mg, Kg, Cg, bcInds, fg, u0] = assemble(N,K)
+function [Mg, Kg, Cg, bcInds, fg, u0] = assemble(N,K,beta)
 
-if (nargin<2)
+if (nargin<3)
    N = 4;
-   K = 4;
+   K = 4;   
+   beta = {@(x) ones(size(x)), @(y) 5*(y-.5), @(x) -5*(x-.5), @(y) ones(size(y))};
 end
+a = beta{1};b = beta{2};c=beta{3};d=beta{4};
 
 Kx = K;
 Ky = K;
@@ -48,11 +50,10 @@ eps = 0.01;
 % b = @(y) ones(size(y))*bb(1);
 % c = @(x) ones(size(x))*bb(2);
 % d = @(y) ones(size(y))*bb(2);
-
-a = @(x) ones(size(x));
-b = @(y) 5*(y-.5);
-c = @(x) -5*(x-.5);
-d = @(y) ones(size(y));
+% a = @(x) ones(size(x));
+% b = @(y) 5*(y-.5);
+% c = @(x) -5*(x-.5);
+% d = @(y) ones(size(y));
 
 % some nonconst nonzero forcing
 Fx = @(x) .5*exp(x);
@@ -153,7 +154,7 @@ U0 = exp(-((R./(delta^2)).^1)).*X.*(1-X).*Y.*(1-Y); % pulse * bubble
 u0 = reshape(U0,Nqkx*Nqky,1); 
 
 % forcing 
-F = Fx(X).*Fy(Y);
+F = Fx(X).*Fy(Y); % interpolate and integrate
 f = reshape(F,Nqkx*Nqky,1);
 fg = Mg*f;
 
@@ -180,45 +181,3 @@ Kg(bcInds,bcInds) = eye(length(bcInds));
 
 fg(bcInds) = 0;
 u0(bcInds) = 0;
-
-% fg_t =  fg + (1/dt)*Mg*u0;
-
-% %fg_t = fg + (1/dt)*Mg*u0 - Kg*u0; %explicit
-% 
-% figure
-% pcolor(xx,yy,U0)
-% ax = axis;
-% cax = caxis;
-% view(2)
-% pause
-% Nsteps = 1/dt;
-% for i = 1:Nsteps
-%     % implicit
-%     ug = ((1/dt)*Mg+eps*Kg+Cg)\fg_t;
-%     fg_t = fg + (1/dt)*Mg*ug; % next timestep
-%     
-%     % explicit
-%     %ug = dt*(1./diag(Mg)).*fg_t;
-%     %fg_t = fg + (1/dt)*Mg*ug - Kg*ug;
-%     
-%     pcolor(xx,yy,reshape(ug,Nqkx,Nqky))    
-%     caxis(cax)
-%     colorbar
-%     title(['Time = ',num2str(i*dt)])
-%     axis(ax)
-%     view(2)
-%     drawnow
-% end
-
-% view(90,0)
-% lam = eig(Kglob);
-% plot(real(lam),imag(lam),'.')
-% title(['eps = ' num2str(eps) ', dt = ', num2str(dt)])
-
-%
-% starts = cumsum(starts);
-% for i = 1:length(galnums)
-% gid = galnums(i)
-% indices(starts(gid) + count(gid)) = i % global to local
-% count(gid) = count(gid) + 1
-% end

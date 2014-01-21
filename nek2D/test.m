@@ -1,31 +1,19 @@
-N = 4; % order
+N = 3; % order
 K = 8;
-CFL = .1;
+CFL = 10;
 dt = CFL/(K*N^2);
 eps = .01;
 c = 1;
+beta = {@(x) ones(size(x)),@(x) ones(size(x)),@(x) zeros(size(x)),@(x) zeros(size(x))};
 
 % clean this part up - consolidate
 kx = K;ky = K;
-dx = 1/kx;dy = 1/ky;
 Nq = N+1;
 Nqkx = kx*(Nq-1) + 1; Nqky = ky*(Nq-1) + 1; % num global dofs along line
-[Ah,Bh,Ch,Dh,z,w] = SEMhat(N); % to get z only...
 
-[Mg, Kg, Cg, bcInds, f, u0] = assemble(N,K); % get global SEM matrices
+[Mg, Kg, Cg, bcInds, f, u0] = assemble(N,K,beta); % get global SEM matrices
 
-% define physical points
-xx = 0; %starting x point
-for i = 1:kx
-    xk = dx*(z+1)/2 + dx*(i-1);
-    xx = [xx xk(2:Nq)'];
-end
-yy = 0;
-for j = 1:ky
-    yk = dy*(z+1)/2 + dy*(j-1);
-    yy = [yy yk(2:Nq)'];
-end
-[X Y] = meshgrid(xx,yy);
+[X Y] = get_physical_points(N,kx,ky);
 
 % initial condtion
 x0 =0.6; y0=0.3; delta = 0.10; R=(X-x0).^2+(Y-y0).^2;
@@ -39,6 +27,14 @@ A = (1/dt)*Mg + eps*Kg + c*Cg;
 A(bcInds,:) = zeros(size(A(bcInds,:)));
 A(:,bcInds) = zeros(size(A(:,bcInds)));
 A(bcInds,bcInds) = eye(length(bcInds));
+
+middle = round(Nqkx*Nqky/2);
+e = zeros(Nqkx*Nqky,1);
+e(middle) = .01;
+G = A\e;
+surf(X,Y,reshape(G,Nqkx,Nqky));
+
+break
 
 figure
 pcolor(xx,yy,U0)
@@ -66,16 +62,3 @@ for i = 1:Nsteps
         drawnow
     end
 end
-
-% view(90,0)
-% lam = eig(Kglob);
-% plot(real(lam),imag(lam),'.')
-% title(['eps = ' num2str(eps) ', dt = ', num2str(dt)])
-
-%
-% starts = cumsum(starts);
-% for i = 1:length(galnums)
-% gid = galnums(i)
-% indices(starts(gid) + count(gid)) = i % global to local
-% count(gid) = count(gid) + 1
-% end
