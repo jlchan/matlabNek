@@ -1,18 +1,27 @@
 % test_agmg
 
-function results = test_agmg
+function [results ref_results] = test_agmg
+
+Nvec = 1:4;%8:16;
+Kvec = 2.^(2:5);
+
+run_test(1.0,1.0,0,Nvec,Kvec)
+
+keyboard
+
+return
 
 results = containers.Map;
 ref_results = containers.Map;
-for CFL = 5:1:6
-    for Re = 1000:2000:3000
+for CFL = [1 5 10]
+    for Re = [1e3 5e3 1e4 5e4]
         key = ['CFL=',num2str(CFL),', Re=',num2str(Re)];
-        results(key) = run_test(CFL,Re,1);
-        ref_results(key) = run_test(CFL,Re,0);
+        results(key) = run_test(CFL,Re,1,Nvec,Kvec);
+        ref_results(key) = run_test(CFL,Re,0,Nvec,Kvec);
     end
 end
 
-function Iters = run_test(CFL,Re,c)
+function Iters = run_test(CFL,Re,c,Nvec,Kvec)
 %CFL = 10;
 %nu = .0001;
 nu = 1/Re;
