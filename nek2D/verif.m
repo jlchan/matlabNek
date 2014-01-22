@@ -15,6 +15,13 @@ bu2 = b'*gu2;
 bu3 = b'*gu3;
 bu4 = b'*gu4;
 
+K = zeros(4);
+K(1,1) = int(int(dot(gu1,gu1),x,0,1),y,0,1);
+K(1,2) = int(int(dot(gu2,gu1),x,0,1),y,0,1);
+K(1,3) = int(int(dot(gu3,gu1),x,0,1),y,0,1);
+K(1,4) = int(int(dot(gu4,gu1),x,0,1),y,0,1);
+
+
 C = zeros(4);
 C(1,1) = int(int(bu1*u1,x,0,1),y,0,1);
 C(1,2) = int(int(bu2*u1,x,0,1),y,0,1);

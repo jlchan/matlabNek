@@ -1,12 +1,19 @@
 % N = 10; % order
 % K = 16; % num elems
 
-function [Mg, Kg, Cg, bcInds, fg, u0] = assemble(N,K,beta)
+function [Mg, Kg, Cg, bcInds, fg, u0] = assemble(N,K,beta,ff)
 
+if (nargin<2)
+    N = 4;
+    K = 4;
+end
 if (nargin<3)
-   N = 4;
-   K = 4;   
-   beta = {@(x) ones(size(x)), @(y) 5*(y-.5), @(x) -5*(x-.5), @(y) ones(size(y))};
+    % circulatory flow
+    beta = {@(x) ones(size(x)), @(y) 5*(y-.5), @(x) -5*(x-.5), @(y) ones(size(y))};    
+end
+if (nargin<4)   
+   % some nonconst nonzero forcing
+   ff = @(x,y) .5*exp(x).*y.^2;
 end
 a = beta{1};b = beta{2};c=beta{3};d=beta{4};
 
@@ -55,9 +62,6 @@ eps = 0.01;
 % c = @(x) -5*(x-.5);
 % d = @(y) ones(size(y));
 
-% some nonconst nonzero forcing
-Fx = @(x) .5*exp(x);
-Fy = @(y) y.^2;
 
 % 1D matrices and GLL points
 [Ah,Bh,Ch,Dh,z,w] = SEMhat(N);       
@@ -95,12 +99,12 @@ end
 Mg = sparse(numdofs,numdofs);
 Kg = sparse(numdofs,numdofs);
 Cg = sparse(numdofs,numdofs);
-fg = zeros(numdofs,1);
+% fg = zeros(numdofs,1);
 for kx = 1:Kx
     for ky = 1:Ky        
         Jx = dx/2; Jy = dy/2;
         % assemble element matrices
-        C = sparse(Nq2,Nq2);
+        C = zeros(Nq2,Nq2);
         xp = dx*(z+1)/2 + dx*(kx-1);
         yp = dy*(z+1)/2 + dy*(ky-1);
         for i = 1:Nq
@@ -111,14 +115,14 @@ for kx = 1:Kx
                     l = j;
                     q = k + Nq*(l-1);
                     C(r,q) = C(r,q) + ...
-                        Jy*a(xp(i))*b(yp(j))*w(j)*w(i)*Dh(i,k);                    
+                        Jy*c(xp(i))*d(yp(j))*w(j)*w(i)*Dh(i,k);                    
                 end
                 % delta_ik -> i = k, loop over l
                 for l = 1:Nq
                     k = i;
                     q = k + Nq*(l-1);
                     C(r,q) = C(r,q) + ...
-                        Jx*c(xp(i))*d(yp(j))*w(i)*w(j)*Dh(j,l);
+                        Jx*a(xp(i))*b(yp(j))*w(i)*w(j)*Dh(j,l);
                 end                
             end
         end                    
@@ -128,9 +132,9 @@ for kx = 1:Kx
         Kg(inds,inds) = Kg(inds,inds) + K;
         Mg(inds,inds) = Mg(inds,inds) + M;
         Cg(inds,inds) = Cg(inds,inds) + C;
-        %fg(inds) = fg(inds) + f;
-        disp(['kx = ',num2str(kx), ', ky = ', num2str(ky)])
+        %fg(inds) = fg(inds) + f;        
     end
+    %disp(['kx = ',num2str(kx), ', ky = ', num2str(ky)])
 end
 Nqkx = kx*(Nq-1) + 1; % num global dofs along x line
 Nqky = ky*(Nq-1) + 1; % num global dofs along y line
@@ -154,7 +158,8 @@ U0 = exp(-((R./(delta^2)).^1)).*X.*(1-X).*Y.*(1-Y); % pulse * bubble
 u0 = reshape(U0,Nqkx*Nqky,1); 
 
 % forcing 
-F = Fx(X).*Fy(Y); % interpolate and integrate
+%F = Fx(X).*Fy(Y); % interpolate and integrate
+F = ff(X,Y);
 f = reshape(F,Nqkx*Nqky,1);
 fg = Mg*f;
 

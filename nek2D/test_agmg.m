@@ -2,26 +2,27 @@
 
 function [results ref_results] = test_agmg
 
-Nvec = 1:4;%8:16;
-Kvec = 2.^(2:5);
+Kvec = 2.^(2:4);
+Nvec = 8:16;
+%Nvec = 4:8;
+%Kvec = 2.^(2:4);
 
-run_test(1.0,1.0,0,Nvec,Kvec)
-
-keyboard
-
-return
+%Dt = 1*ones(length(Kvec),length(Nvec));   
+%ref = run_test(Dt,1.0,0,Nvec,Kvec)
 
 results = containers.Map;
 ref_results = containers.Map;
+[NN KK] = meshgrid(Nvec,Kvec);
 for CFL = [1 5 10]
-    for Re = [1e3 5e3 1e4 5e4]
+    for Re = [1e2 5e2 1e3]
+        Dt = CFL./(NN.^2.*KK);
         key = ['CFL=',num2str(CFL),', Re=',num2str(Re)];
-        results(key) = run_test(CFL,Re,1,Nvec,Kvec);
-        ref_results(key) = run_test(CFL,Re,0,Nvec,Kvec);
+        results(key) = run_test(Dt,Re,1,Nvec,Kvec);
+        ref_results(key) = run_test(Dt,Re,0,Nvec,Kvec);
     end
 end
 
-function Iters = run_test(CFL,Re,c,Nvec,Kvec)
+function Iters = run_test(Dt,Re,c,Nvec,Kvec)
 %CFL = 10;
 %nu = .0001;
 nu = 1/Re;
@@ -31,12 +32,14 @@ if nargin<5
 end
 Iters = zeros(length(Kvec),length(Nvec));
 
-for i = 1:length(Kvec)
+for i = 1:length(Kvec)    
+    Its = zeros(length(Nvec),1);
     for j = 1:length(Nvec)
         K = Kvec(i);N = Nvec(j);                      
         [Mg, Kg, Cg, bcInds, f, u0] = assemble(N,K); % get global SEM matrices
 
-        dt = CFL/(K*N^2);
+        %dt = CFL/(K*N^2);
+        dt = Dt(i,j);
         
         % full matrix
         A = (1/dt)*Mg + nu*Kg + c*Cg;
@@ -57,7 +60,9 @@ for i = 1:length(Kvec)
         
         % solve
         [x flag relres iter resvec] = agmg_solve(levels, Rhs, maxiter, tol);
-        Iters(i,j) = iter;
+        %Iters(i,j) = iter;        
+        Its(j) = iter;
     end    
+    Iters(i,:) = Its;
 end
 
