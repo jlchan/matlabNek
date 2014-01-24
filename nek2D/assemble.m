@@ -1,7 +1,7 @@
 % N = 10; % order
 % K = 16; % num elems
 
-function [Mg, Kg, Cg, bcInds, fg, u0] = assemble(N,K,beta,ff)
+function [Mg, Kg, Cg, bcInds, fg, u0, galnums] = assemble(N,K,beta,ff)
 
 if (nargin<2)
     N = 4;

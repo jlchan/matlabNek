@@ -2,14 +2,14 @@
 
 function [results ref_results] = test_agmg
 
-Kvec = 2.^(2:4);
-Nvec = 8:16;
-%Nvec = 4:8;
 %Kvec = 2.^(2:4);
+%Nvec = 8:16;
+Nvec = 1:6;
+Kvec = 2.^(2:4);
 
-%Dt = 1*ones(length(Kvec),length(Nvec));   
-%ref = run_test(Dt,1.0,0,Nvec,Kvec)
-
+Dt = 1*ones(length(Kvec),length(Nvec));   
+results = run_test(Dt,1.0,0,Nvec,Kvec)
+return;
 results = containers.Map;
 ref_results = containers.Map;
 [NN KK] = meshgrid(Nvec,Kvec);
