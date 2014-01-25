@@ -139,8 +139,66 @@ Todos
 \begin{enumerate}
 \item Document current AGMG verification ($h$ and $N$ independence)
 \item Compare AGMG/Wathen downwind GS
+\item Analyze static condensation case
 \item Implement $A+A^T$ AGMG coarsening
 \end{enumerate}
+
+\section{Introduction}
+
+A common approach to the numerical solution of the Navier-Stokes equations
+\begin{align*}
+\pd{u}{t} + u\cdot\grad u + \grad p &= f \\
+\div u &= 0
+\end{align*}
+is to employ a splitting or projection method, where we 
+\begin{enumerate}
+\item compute an intermediate velocity $u^*$ by solving $$\frac{(u^*-u^k)}{dt} - \nu\Delta u^* = f(t^k)$$
+\item correct the velocity by solving 
+$$\begin{cases}
+\frac{(u^{k+1}-u^*)}{dt} + \nabla p^k &= 0\\
+\nabla \cdot u^{k+1} &= 0\\
+u^{k+1}\cdot n &= 0 \quad \text{on the boundary}
+\end{cases}$$
+\end{enumerate}
+This above step is the reason splitting schemes are referred to as projection methods - the weak form of (2) can be interpreted as the scaled $L^2$ projection of $u^*$ onto a divergence-free $u^{k+1}$ (after multiplying by a test function, $p$ can then be viewed as a Lagrange multiplier to enforce the divergence free constraint).  Since pressure is undetermined in the second step, we need to produce an approximation for $p$.  Based on the assumption that $\nabla \cdot u^{k+1}$ must be $0$, we can take the divergence of the second equation to get $$\nabla \cdot \frac{u^*}{dt} + \nabla\cdot \nabla p^k = 0,$$ which yields a Poisson equation for $p$ given $u^*$. 
+
+The overall scheme is then 
+\begin{enumerate}
+\item Solve for $u^*$ through $$\frac{(u^*-u^k)}{dt} - \nu\Delta u^* = f(t^k)$$
+\item  Solve for $p$ through $$\Delta p = \frac{1}{dt}\nabla \cdot u^*$$
+\item Solve for $u^{k+1}$ through $$\frac{(u^{k+1}-u^*)}{dt} + \nabla p^k = 0.$$
+\end{enumerate}
+Note that both steps 2 and 3 involve the solution of a Poisson and $L^2$-projection problem, respectively, both of which involve symmetric, positive-definite operators which can be solved very efficiently in a scalable fashion.  However, as step 1 involves the solution of a non-symmetric convection-diffusion system, the full system is eschewed in favor of 
+
+A particularly restrictive aspect of this solution method is the CFL condition for spectral finite elements
+\[
+dt < O\LRp{\LRb{u}\frac{h}{N^2}},
+\]
+which results from the $O(1/N^2)$ minimum spacing between the GLL nodes of order $N$ on a given element.  For high $N$ ($N>20$ and higher), the CFL condition can be incredibly restrictive 
+
+\section{Scalar convection-diffusion}
+
+We investigate first the scalar convection-diffusion equation with homogeneous Dirichlet boundary condtions.  
+\begin{align*}
+\div(\beta u) - \epsilon \Delta u &= f\\
+\left.u\right|_{\Gamma} = 0,
+\end{align*}
+and preconditioning strategies for systems resulting from high order spectral element discretizations of this equation.  
+
+\subsection{AGMG}
+
+\subsubsection{Static condensation}
+
+Static condensation involves the representation of interior degrees of freedom (nodes in the interior of an element) in terms of globally coupled degrees of freedom through the local Schur complement.  
+
+Todos
+\begin{enumerate}
+\item Try iterative solver on single element system - how do you do matrix-free condensation?  
+\item Balance cost - what is the baseline?  Can we do a GPU workgroup implementation?  
+\end{enumerate}
+
+\subsection{``Downwind'' preconditioner}
+
 
 \bibliographystyle{unsrt}
 \bibliography{paper}
