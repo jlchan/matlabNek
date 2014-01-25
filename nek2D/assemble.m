@@ -96,10 +96,12 @@ for i = 1:Nq
 end
 
 % assemble global mass/stiffness/convection (also local)
-Mg = sparse(numdofs,numdofs);
-Kg = sparse(numdofs,numdofs);
-Cg = sparse(numdofs,numdofs);
+%Mg = sparse(numdofs,numdofs);
+%Kg = sparse(numdofs,numdofs);
+%Cg = sparse(numdofs,numdofs);
 % fg = zeros(numdofs,1);
+rowInds = [];colInds = [];
+cvec = [];
 for kx = 1:Kx
     for ky = 1:Ky        
         Jx = dx/2; Jy = dy/2;
@@ -129,13 +131,23 @@ for kx = 1:Kx
         elem_offset = ((ky-1)*Kx + (kx-1))*Nq2;
         local_inds = 1:Nq2;
         inds = galnums(elem_offset + local_inds);
-        Kg(inds,inds) = Kg(inds,inds) + K;
-        Mg(inds,inds) = Mg(inds,inds) + M;
-        Cg(inds,inds) = Cg(inds,inds) + C;
+        [I J] = meshgrid(inds);
+        rowInds = [rowInds; I(:)];
+        colInds = [colInds; J(:)];
+        cvec = [cvec; C(:)];
+        %Kg(inds,inds) = Kg(inds,inds) + K;
+        %Mg(inds,inds) = Mg(inds,inds) + M;
+        %Cg(inds,inds) = Cg(inds,inds) + C;
         %fg(inds) = fg(inds) + f;        
     end
-    %disp(['kx = ',num2str(kx), ', ky = ', num2str(ky)])
+    disp(['kx = ',num2str(kx), ', ky = ', num2str(ky)])
 end
+Cg = sparse(colInds,rowInds,cvec,numdofs,numdofs,numdofs*Nq2*4);
+mvec = repmat(M(:),kx*ky,1);
+Mg = sparse(colInds,rowInds,mvec,numdofs,numdofs,numdofs*Nq2*4);
+kvec = repmat(K(:),kx*ky,1);
+Kg = sparse(colInds,rowInds,kvec,numdofs,numdofs,numdofs*Nq2*4);
+
 Nqkx = kx*(Nq-1) + 1; % num global dofs along x line
 Nqky = ky*(Nq-1) + 1; % num global dofs along y line
 
