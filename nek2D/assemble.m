@@ -1,7 +1,7 @@
 % N = 10; % order
 % K = 16; % num elems
 
-function [Mg, Kg, Cg, bcInds, fg, u0, galnums] = assemble(N,K,beta,ff)
+function [Mg, Kg, Cg, bcInds, fg, u0, galnums, Sg] = assemble(N,K,beta,ff,useConstBeta)
 
 if (nargin<2)
     N = 4;
@@ -48,9 +48,6 @@ numdofs = gid;
 
 % make 2D element matrices
 %dt = .5*min(dx,dy)/N^2; % cfl condition
-dt = .01;
-eps = 0.01;
-
 % bb = [1 1];
 % %cx = -cos(pi2*xx).*sin(pi2*yy); cy =  sin(pi2*xx).*cos(pi2*yy);
 % a = @(x) ones(size(x))*bb(1); % define beta = (ab,cd)
@@ -100,47 +97,95 @@ end
 %Kg = sparse(numdofs,numdofs);
 %Cg = sparse(numdofs,numdofs);
 % fg = zeros(numdofs,1);
-rowInds = [];colInds = [];
-cvec = [];
-for kx = 1:Kx
-    for ky = 1:Ky        
-        Jx = dx/2; Jy = dy/2;
-        % assemble element matrices
-        C = zeros(Nq2,Nq2);
-        xp = dx*(z+1)/2 + dx*(kx-1);
-        yp = dy*(z+1)/2 + dy*(ky-1);
-        for i = 1:Nq
-            for j = 1:Nq
-                r = i + Nq*(j-1);                
-                % delta_jl -> j = l, loop over k
-                for k = 1:Nq
-                    l = j;
-                    q = k + Nq*(l-1);
-                    C(r,q) = C(r,q) + ...
-                        Jy*c(xp(i))*d(yp(j))*w(j)*w(i)*Dh(i,k);                    
-                end
-                % delta_ik -> i = k, loop over l
-                for l = 1:Nq
-                    k = i;
-                    q = k + Nq*(l-1);
-                    C(r,q) = C(r,q) + ...
-                        Jx*a(xp(i))*b(yp(j))*w(i)*w(j)*Dh(j,l);
-                end                
+% svec = [];
+if (useConstBeta)
+    Jx = dx/2; Jy = dy/2;
+    % assemble element matrices
+    C = zeros(Nq2,Nq2);
+    xp = dx*(z+1)/2 + dx*(kx-1);
+    yp = dy*(z+1)/2 + dy*(ky-1);
+    for i = 1:Nq
+        for j = 1:Nq
+            r = i + Nq*(j-1);
+            % delta_jl -> j = l, loop over k
+            for k = 1:Nq
+                l = j;
+                q = k + Nq*(l-1);
+                C(r,q) = C(r,q) + ...
+                    Jy*c(xp(i))*d(yp(j))*w(j)*w(i)*Dh(i,k);
             end
-        end                    
-        elem_offset = ((ky-1)*Kx + (kx-1))*Nq2;
-        local_inds = 1:Nq2;
-        inds = galnums(elem_offset + local_inds);
-        [I J] = meshgrid(inds);
-        rowInds = [rowInds; I(:)];
-        colInds = [colInds; J(:)];
-        cvec = [cvec; C(:)];
-        %Kg(inds,inds) = Kg(inds,inds) + K;
-        %Mg(inds,inds) = Mg(inds,inds) + M;
-        %Cg(inds,inds) = Cg(inds,inds) + C;
-        %fg(inds) = fg(inds) + f;        
+            % delta_ik -> i = k, loop over l
+            for l = 1:Nq
+                k = i;
+                q = k + Nq*(l-1);
+                C(r,q) = C(r,q) + ...
+                    Jx*a(xp(i))*b(yp(j))*w(i)*w(j)*Dh(j,l);
+            end
+        end
+    end    
+    cvec = repmat(C(:),kx*ky,1);
+    
+    cnt = 0;
+    for kx = 1:Kx
+        for ky = 1:Ky                        
+            cnt = cnt + Nq2*Nq2;
+        end
     end
-    disp(['kx = ',num2str(kx), ', ky = ', num2str(ky)])
+    rowInds = zeros(cnt,1);colInds = zeros(cnt,1);
+    a = 1;    
+    for kx = 1:Kx
+        for ky = 1:Ky                        
+            elem_offset = ((ky-1)*Kx + (kx-1))*Nq2;            
+            inds = galnums(elem_offset + (1:Nq2));
+            [I J] = meshgrid(inds);
+            b = a + length(I(:))-1;
+%             keyboard
+            rowInds(a:b) = I(:);
+            colInds(a:b) = J(:);            
+            a = b+1;
+        end
+        disp(['inds, kx = ',num2str(kx), ', ky = ', num2str(ky)])
+    end    
+
+else
+    rowInds = [];colInds = [];
+    cvec = [];
+    for kx = 1:Kx
+        for ky = 1:Ky
+            Jx = dx/2; Jy = dy/2;
+            % assemble element matrices
+            C = zeros(Nq2,Nq2);
+            xp = dx*(z+1)/2 + dx*(kx-1);
+            yp = dy*(z+1)/2 + dy*(ky-1);
+            for i = 1:Nq
+                for j = 1:Nq
+                    r = i + Nq*(j-1);
+                    % delta_jl -> j = l, loop over k
+                    for k = 1:Nq
+                        l = j;
+                        q = k + Nq*(l-1);
+                        C(r,q) = C(r,q) + ...
+                            Jy*c(xp(i))*d(yp(j))*w(j)*w(i)*Dh(i,k);
+                    end
+                    % delta_ik -> i = k, loop over l
+                    for l = 1:Nq
+                        k = i;
+                        q = k + Nq*(l-1);
+                        C(r,q) = C(r,q) + ...
+                            Jx*a(xp(i))*b(yp(j))*w(i)*w(j)*Dh(j,l);
+                    end
+                end
+            end
+            elem_offset = ((ky-1)*Kx + (kx-1))*Nq2;
+            local_inds = 1:Nq2;
+            inds = galnums(elem_offset + local_inds);
+            [I J] = meshgrid(inds);
+            rowInds = [rowInds; I(:)];
+            colInds = [colInds; J(:)];
+            cvec = [cvec; C(:)];
+        end
+        disp(['kx = ',num2str(kx), ', ky = ', num2str(ky)])
+    end    
 end
 Cg = sparse(colInds,rowInds,cvec,numdofs,numdofs,numdofs*Nq2*4);
 mvec = repmat(M(:),kx*ky,1);

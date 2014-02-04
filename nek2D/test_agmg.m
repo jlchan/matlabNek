@@ -7,13 +7,14 @@ function [results ref_results] = test_agmg
 Nvec = 1:6;
 Kvec = 2.^(2:4);
 
-Dt = 1*ones(length(Kvec),length(Nvec));   
-results = run_test(Dt,1.0,0,Nvec,Kvec)
-return;
+%Dt = 1*ones(length(Kvec),length(Nvec));   
+%results = run_test(Dt,1.0,0,Nvec,Kvec)
+%return;
+
 results = containers.Map;
 ref_results = containers.Map;
 [NN KK] = meshgrid(Nvec,Kvec);
-for CFL = [1 5 10]
+for CFL = [5 10 20]
     for Re = [1e2 5e2 1e3]
         Dt = CFL./(NN.^2.*KK);
         key = ['CFL=',num2str(CFL),', Re=',num2str(Re)];

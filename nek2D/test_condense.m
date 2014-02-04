@@ -4,10 +4,10 @@ addpath('./agmg')
 one = @(x) ones(size(x));
 zero = @(x) zeros(size(x));
 
-N = 8; % order
-K = 8;
-% CFL = 1; dt = CFL/(K*N^2);
-dt = 1.0;
+N = 4; % order
+K = 32;
+CFL = 20; dt = CFL/(K*N^2);
+%dt = 1.0;
 eps = .01;
 c = 1;
 
@@ -23,7 +23,7 @@ f = @(x,y) zeros(size(x));
 
 % clean this part up - consolidate
 Kx = K;Ky = K;Nq = N+1;Nqkx = Kx*(Nq-1) + 1; Nqky = Ky*(Nq-1) + 1; % num global dofs along line
-[Mg, Kg, Cg, bcInds, fvec, u0, galnums] = assemble(N,K,beta,f); % get global SEM matrices
+[Mg, Kg, Cg, bcInds, fvec, u0, galnums] = assemble(N,K,beta,f,true); % get global SEM matrices
 [X Y] = get_physical_points(N,Kx,Ky);
 
 % initial condtion
@@ -64,7 +64,6 @@ tol = 1e-7; maxiter = 100;
 
 % agmg for new system
 levels_S = agmg_setup(S);
-tol = 1e-7;maxiter = 100;
 [x_edge flag relres iter_S resvec_S] = agmg_solve(levels_S, Rhs_S, maxiter, tol);
 % x_edge = S\Rhs_S;
 
@@ -79,6 +78,7 @@ diff = norm(xsc-x);
 figure
 semilogy(resvec);hold on
 semilogy(resvec_S,'r')
+semilogy(rv_b,'k')
 title(['Difference in solution = ', num2str(diff)])
 
 break
