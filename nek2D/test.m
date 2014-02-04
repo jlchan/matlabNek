@@ -3,8 +3,8 @@ clear
 one = @(x) ones(size(x));
 zero = @(x) zeros(size(x));
 
-N = 10; % order
-K = 64;
+N = 8; % order
+K = 16;
 CFL = 10; 
 dt = 1.0;%CFL/(K*N^2);
 %dt = 1e-2;
@@ -68,7 +68,8 @@ if N>1
     Rhs_S = fg_t(gids) - Cs*(As\fg_t(lids)); % form new load    
     ugids = S\Rhs_S;    
 else
-    ug = A\fvec;
+    uglob = A\fvec;
+    ug = uglob;
 end
 ug(lids) = nan;
 ug(gids) = ugids;
@@ -77,13 +78,13 @@ ug(setdiff(1:length(ug),vids)) = nan;
 scatter3(X(:),Y(:),ug,ones(size(ug))*24,ug,'filled')
 
 if (N>1)
-    si = zeros(size(S,1));
+    si = zeros(size(S,1),1);
     i = 1;
     for g = gids
         si(g) = i;
         i=i+1;
     end
-    p = [si(eids) si(vids)];
+    p = [si(eids); si(vids)];
     figure
     spy(S(p,p));
 end
