@@ -135,13 +135,6 @@
 \begin{document}
 
 \maketitle
-Todos
-\begin{enumerate}
-\item Document current AGMG verification ($h$ and $N$ independence)
-\item Compare AGMG/Wathen downwind GS
-\item Analyze static condensation case
-\item Implement $A+A^T$ AGMG coarsening
-\end{enumerate}
 
 \section{Introduction}
 
@@ -168,22 +161,77 @@ The overall scheme is then
 \item  Solve for $p$ through $$\Delta p = \frac{1}{dt}\nabla \cdot u^*$$
 \item Solve for $u^{k+1}$ through $$\frac{(u^{k+1}-u^*)}{dt} + \nabla p^k = 0.$$
 \end{enumerate}
-Note that both steps 2 and 3 involve the solution of a Poisson and $L^2$-projection problem, respectively, both of which involve symmetric, positive-definite operators which can be solved very efficiently in a scalable fashion.  However, as step 1 involves the solution of a non-symmetric convection-diffusion system, the full system is eschewed in favor of 
+Note that both steps 2 and 3 involve the solution of a Poisson and $L^2$-projection problem, respectively, both of which involve symmetric, positive-definite operators which can be solved very efficiently in a scalable fashion.  However, as step 1 involves the solution of a non-symmetric convection-diffusion system, the full system is often eschewed in favor of a second splitting, where the convective term is updated explicitly, and diffusion accounted for implicitly.  
 
 A particularly restrictive aspect of this solution method is the CFL condition for spectral finite elements
 \[
 dt < O\LRp{\LRb{u}\frac{h}{N^2}},
 \]
-which results from the $O(1/N^2)$ minimum spacing between the GLL nodes of order $N$ on a given element.  For high $N$ ($N>20$ and higher), the CFL condition can be incredibly restrictive 
+which results from the $O(1/N^2)$ minimum spacing between the GLL nodes of order $N$ on a given element.  For high $N$ ($N>20$ and higher), the explicit CFL condition can be incredibly restrictive.  Our aim is to consider instead the direct solution of the convection-diffusion system, which we hope will allow us to loosen the CFL restriction.  
 
 \section{Scalar convection-diffusion}
 
-We investigate first the scalar convection-diffusion equation with homogeneous Dirichlet boundary condtions.  
+We investigate first the scalar convection-diffusion-reaction equation with homogeneous Dirichlet boundary condtions.  
 \begin{align*}
-\div(\beta u) - \epsilon \Delta u &= f\\
+u + \div(\beta u) - \epsilon \Delta u &= f\\
 \left.u\right|_{\Gamma} = 0,
 \end{align*}
 and preconditioning strategies for systems resulting from high order spectral element discretizations of this equation.  
+
+\subsection{1D experiments}
+
+Effective preconditioning of convection-diffusion systems has often exploited the physics of convection-dominated problems.  The relevant physics are often encapsulated in the Greens function, which has been effectively used in the preconditioning of systems resulting from discretizations of convection-diffusion problems.  The idea put forth in \cite{Loghin97,Loghin99} is that the support of the Green's function in the convection-dominated limit is purely upstream.  Under a ``with-the-flow'' ordering of the degrees of freedom, the matrix inverse becomes lower triangular.  Loghin and Wathen take advantage of this by using a Gauss-Seidel preconditioner on both uniform and adaptive meshes of linear and bilinear elements.  
+
+\begin{figure}
+\subfigure[Greens function for $\epsilon = 1.0$]{\includegraphics[width=.47\textwidth]{g_eps1.eps}}
+\subfigure[Greens function for $\epsilon = 10^{-2}$]{\includegraphics[width=.47\textwidth]{g_eps100.eps}}
+\caption{Greens functions for diffusive/convective regimes.}
+\end{figure}
+
+A requirement for use of the Gauss-Seidel preconditioners for the convection-diffusion problem is a discretization that is stable in the convective limit; to this end, they employ SUPG stabilization in all their examples.  
+
+\subsubsection{Resolved meshes and higher order elements}
+
+Unfortunately, the Gauss-Seidel preconditioner relies on the fact that the support of the convection-diffusion Green's function in the cross and downstream directions decays to zero over a distance of roughly $\epsilon$; this implies that, for resolved meshes where $h\approx \epsilon$, a ``with-the-flow'' preconditioner does not work as effectively as with under-resolved meshes.  Figure~\ref{fig:resolved_GS} shows GMRES convergence in these two cases; for $h/\epsilon < 1$, convergence is relatively fast; for $h/\epsilon = O(1)$ or larger, the convergence rate suffers.  
+
+\begin{figure}
+\subfigure[Under-resolved convergence for $\epsilon = 10^{-6}$]{\includegraphics[width=.47\textwidth]{GS_underResolved.eps}}
+\subfigure[Resolved convergence for $\epsilon = 10^{-2}$]{\includegraphics[width=.47\textwidth]{GS_resolved.eps}}
+%\subfigure[GMRES convergence]{\includegraphics[width=.47\textwidth]{GS_higherOrder.eps}}
+\caption{GMRES convergence for resolved and under-resolved linear meshes.}
+\label{fig:resolved_GS}
+\end{figure}
+
+Higher order elements display similar issues 
+
+\begin{figure}
+\subfigure[Under-resolved convergence for $\epsilon = 10^{-6}$]{\includegraphics[width=.47\textwidth]{GS_HO_underResolved.eps}}
+\subfigure[Resolved convergence for $\epsilon = 10^{-2}$]{\includegraphics[width=.47\textwidth]{GS_HO_resolved.eps}}
+%\subfigure[GMRES convergence]{\includegraphics[width=.47\textwidth]{GS_higherOrder.eps}}
+\caption{Greens functions for diffusive/convective regimes.}
+\label{fig:rHO_GS}
+\end{figure}
+
+\subsubsection{Schur complement downwinding}
+
+\cite{Cai14}
+\begin{enumerate}
+\item Show Wathen preconditioning breaks down for no stabilization
+\item Show Wathen preconditioning breaks down for resolved meshes
+\item Show Wathen preconditioning breaks down for higher order
+\item Analyze static condensation case
+\item Addition of a mass matrix (with mass vector).  
+\end{enumerate}
+
+\subsection{2D experiments}
+
+Todos
+\begin{enumerate}
+\item Document current AGMG verification ($h$ and $N$ independence)
+\item Compare AGMG/Wathen downwind GS
+\item Analyze static condensation case
+\item Implement $A+A^T$ AGMG coarsening
+\end{enumerate}
 
 \subsection{AGMG}
 
@@ -197,10 +245,8 @@ Todos
 \item Balance cost - what is the baseline?  Can we do a GPU workgroup implementation?  
 \end{enumerate}
 
-\subsection{``Downwind'' preconditioner}
-
 
 \bibliographystyle{unsrt}
-\bibliography{paper}
+\bibliography{main}
 
 \end{document}
