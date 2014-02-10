@@ -138,9 +138,9 @@
 
 \section{Introduction}
 
-A common approach to the numerical solution of the Navier-Stokes equations
+A common approach to the numerical solution of the Stokes equations
 \begin{align*}
-\pd{u}{t} + u\cdot\grad u + \grad p &= f \\
+\pd{u}{t} + u\cdot\grad u + \grad p - \nu \Delta u &= f \\
 \div u &= 0
 \end{align*}
 is to employ a splitting or projection method, where we 
@@ -161,22 +161,41 @@ The overall scheme is then
 \item  Solve for $p$ through $$\Delta p = \frac{1}{dt}\nabla \cdot u^*$$
 \item Solve for $u^{k+1}$ through $$\frac{(u^{k+1}-u^*)}{dt} + \nabla p^k = 0.$$
 \end{enumerate}
-Note that both steps 2 and 3 involve the solution of a Poisson and $L^2$-projection problem, respectively, both of which involve symmetric, positive-definite operators which can be solved very efficiently in a scalable fashion.  However, as step 1 involves the solution of a non-symmetric convection-diffusion system, the full system is often eschewed in favor of a second splitting, where the convective term is updated explicitly, and diffusion accounted for implicitly.  
-
+Note that both steps 2 and 3 involve the solution of a Poisson and $L^2$-projection problem, respectively, both of which involve symmetric, positive-definite operators which can be solved very efficiently in a scalable fashion.  However, as step 1 involves the solution of a non-symmetric convection-diffusion system, the full system is often eschewed in favor of a second splitting, where the convective term is updated explicitly, and diffusion accounted for implicitly.  The solution of the full Navier-Stokes equations is then solved via the series of steps
+\begin{align*}
+\pd{u}{t} + N(u) + \grad p - \nu \Delta u &= f \\
+\div u &= 0
+\end{align*}
+can be done through the following three steps:
+\begin{enumerate}
+\item Solve for $u^*$ through $$\frac{(u^*-u^k)}{dt} = - N(u(t^k)) + f(t^k)$$
+\item  Solve for $p$ through $$-\Delta p = \frac{1}{dt}\nabla \cdot u^* + \div(N(u)-f)$$
+\item Solve for $u^{k+1}$ through $$\frac{(u^{k+1}-u^*)}{dt} - \nu\Delta u^{k+1} = -\nabla p^k = 0.$$
+\end{enumerate}
 A particularly restrictive aspect of this solution method is the CFL condition for spectral finite elements
 \[
 dt < O\LRp{\LRb{u}\frac{h}{N^2}},
 \]
-which results from the $O(1/N^2)$ minimum spacing between the GLL nodes of order $N$ on a given element.  For high $N$ ($N>20$ and higher), the explicit CFL condition can be incredibly restrictive.  Our aim is to consider instead the direct solution of the convection-diffusion system, which we hope will allow us to loosen the CFL restriction.  
+which results from the $O(1/N^2)$ minimum spacing between the GLL nodes of order $N$ on a given element.  For high $N$ ($N>20$ and higher), the explicit CFL condition can be incredibly restrictive.  The solution of the first equation is the inversion of a mass matrix, which is diagonal for SEM and essentially free.  The solution to the second and third steps require a Poisson and reaction-diffusion solve, respectively, which can be solved in a very efficient manner matrix-free manner.  
+
+Our aim is to consider instead the direct solution of the convection-diffusion system, which we hope will allow us to loosen the CFL restriction.  
+
+Pretend the ratio of desired CFL to current CFL is $r$.
+\begin{enumerate}
+\item A single timestep costs 2 elliptic solves - assume each takes $C_{mv}$ matrix-vector multiplications and preconditioner cost $C_{pre}$.  
+\item $r(C_{mv} + C_{pre})$ is the cost of explicitly time-integrating over a single timestep.  The cost of one implicit solve must be less than this.  
+\item Do a higher order time integration scheme to make up for difference in time accuracy, or quantify when it doesn't matter.  
+\item How to take into account memory cost?
+\end{enumerate}
 
 \section{Scalar convection-diffusion}
 
 We investigate first the scalar convection-diffusion-reaction equation with homogeneous Dirichlet boundary condtions.  
 \begin{align*}
-u + \div(\beta u) - \epsilon \Delta u &= f\\
+\alpha u + \div(\beta u) - \epsilon \Delta u &= f\\
 \left.u\right|_{\Gamma} = 0,
 \end{align*}
-and preconditioning strategies for systems resulting from high order spectral element discretizations of this equation.  
+and preconditioning strategies for systems resulting from high order spectral element discretizations of this equation.  For most of the examples given, $\alpha = 1$ unless specified otherwise.  
 
 \subsection{1D experiments}
 
@@ -192,8 +211,6 @@ A requirement for use of the Gauss-Seidel preconditioners for the convection-dif
 
 \subsubsection{Resolved meshes and higher order elements}
 
-Unfortunately, the Gauss-Seidel preconditioner relies on the fact that the support of the convection-diffusion Green's function in the cross and downstream directions decays to zero over a distance of roughly $\epsilon$; this implies that, for resolved meshes where $h\approx \epsilon$, a ``with-the-flow'' preconditioner does not work as effectively as with under-resolved meshes.  Figure~\ref{fig:resolved_GS} shows GMRES convergence in these two cases; for $h/\epsilon < 1$, convergence is relatively fast; for $h/\epsilon = O(1)$ or larger, the convergence rate suffers.  
-
 \begin{figure}
 \subfigure[Under-resolved convergence for $\epsilon = 10^{-6}$]{\includegraphics[width=.47\textwidth]{GS_underResolved.eps}}
 \subfigure[Resolved convergence for $\epsilon = 10^{-2}$]{\includegraphics[width=.47\textwidth]{GS_resolved.eps}}
@@ -202,47 +219,114 @@ Unfortunately, the Gauss-Seidel preconditioner relies on the fact that the suppo
 \label{fig:resolved_GS}
 \end{figure}
 
-Higher order elements display similar issues 
+Unfortunately, the Gauss-Seidel preconditioner relies on the fact that the support of the convection-diffusion Green's function in the cross and downstream directions decays to zero over a distance of roughly $\epsilon$; this implies that, for resolved meshes where $h\approx \epsilon$, a ``with-the-flow'' preconditioner does not work as effectively as with under-resolved meshes.  Figure~\ref{fig:resolved_GS} shows GMRES\footnote{Restart is taken every 10 iterations.} convergence in these two cases; for $h/\epsilon < 1$, convergence is relatively fast; for $h/\epsilon = O(1)$ or larger, the convergence rate suffers.  
 
 \begin{figure}
 \subfigure[Under-resolved convergence for $\epsilon = 10^{-6}$]{\includegraphics[width=.47\textwidth]{GS_HO_underResolved.eps}}
 \subfigure[Resolved convergence for $\epsilon = 10^{-2}$]{\includegraphics[width=.47\textwidth]{GS_HO_resolved.eps}}
 %\subfigure[GMRES convergence]{\includegraphics[width=.47\textwidth]{GS_higherOrder.eps}}
 \caption{Greens functions for diffusive/convective regimes.}
-\label{fig:rHO_GS}
+\label{fig:HO_GS}
 \end{figure}
 
-\subsubsection{Schur complement downwinding}
+Higher order elements display similarly poor convergence; they suffer poor behavior with downwind Gauss-Seidel preconditioning both for resolved and underresolved meshes.  This is due in part to the suboptimal nature of the SUPG constant chosen -- we take $\tau = \max\{h/(2N)-\epsilon,0\}$, which, while used often, is not an optimal value.  
 
-\cite{Cai14}
-\begin{enumerate}
-\item Show Wathen preconditioning breaks down for no stabilization
-\item Show Wathen preconditioning breaks down for resolved meshes
-\item Show Wathen preconditioning breaks down for higher order
-\item Analyze static condensation case
-\item Addition of a mass matrix (with mass vector).  
-\end{enumerate}
+\subsubsection{Schur complement downwind Gauss-Seidel}
+
+An advantage of higher order discretizations in 1D is that higher order degrees of freedom can be eliminated, yielding a system only in terms of vertex degrees of freedom.  In matrix form, assume that we order our degrees of freedom by higher order degrees of freedom first, then by vertex degrees of freedom.  The resulting system
+\[
+\arr{A}{B}{C}{D}\vecttwo{u_i}{u_e} = \vecttwo{f}{g}
+\]
+can be reduced to the solution of the Schur complement system
+\[
+(D-CA^{-1}B)u_e = g - CA^{-1}f.
+\]
+For nodal basis functions, the support of higher order degrees of freedom is local, making $A$ block diagonal.  
+
+\begin{figure}
+\subfigure[Green's function for $\epsilon = 10^{-2}$]{\includegraphics[width=.47\textwidth]{g_full_schur.eps}}
+\subfigure[ GMRES convergence for $\epsilon = 10^{-2}$]{\includegraphics[width=.47\textwidth]{gmres_full_schur.eps}}
+\caption{Greens functions/GMRES convergence for full and Schur complement systems.}
+\label{fig:gmres_HO_GS}
+\end{figure}
+
+An advantage of this method is that Gauss-Seidel preconditioning works for high order resolved discretizations, specifically the case where $h/N > \epsilon$, provided that $h > \epsilon$.  Figure~\ref{fig:gmres_HO_GS} demonstrates this for a non-stabilized discretization (SUPG stabilization behaves similarly, though static condensation itself has been observed to have stabilizing properties \cite{Cai14}), with GMRES convergence restored for the Schur complement system.  The Greens function for the statically condensed system similarly loses its upstream support, indicating that the inverse of the Schur complement system recovers its lower-triangular nature.  
+
+In all cases, $K = 16$, and $N=4$.
+
+\subsection{AGMG in 1D}
+
+Aggregation multigrid is a purely algebraic multigrid method based on the magnitude of the entries in the resulting system \cite{notay2010aggregation}.  
+
+\begin{figure}
+\subfigure[Green's function approximation, damped Jacobi]{\includegraphics[width=.47\textwidth]{g_agmg_DJ.eps}}
+\subfigure[Green's function approximation, Gauss-Seidel]{\includegraphics[width=.47\textwidth]{g_agmg_GS.eps}}
+\caption{Greens functions approximations.}
+\label{fig:greens_AGMG}
+
+\end{figure}
+\begin{figure}
+\subfigure[ GMRES with damped Jacobi smoothing]{\includegraphics[width=.47\textwidth]{gmres_agmg_DJ.eps}}
+\subfigure[ GMRES with Gauss-Seidel smoothing]{\includegraphics[width=.47\textwidth]{gmres_agmg_GS.eps}}
+\caption{Greens functions/GMRES convergence for full and Schur complement systems.}
+\label{fig:gmres_AGMG}
+\end{figure}
+
+Both standard and symmetric Gauss-Seidel give results similar to Wathen's preconditioner.  We note also that, unlike Wathen's preconditioner, the behavior of AGMG with remains relatively unchanged under a reordering of dofs.  
+
+In all cases, $K = 16$, and $N=4$.  
 
 \subsection{2D experiments}
 
-Todos
+In higher dimension 2D, the above analysis changes somewhat; Wathen's preconditioner becomes a block Gauss-Seidel method, where each block corresponds roughly to a collection of nodal values on differing streamlines.  
+
+We consider now $\alpha > 1$; practically speaking, we are interested in preconditioning implicit-in-time systems where $\alpha = dt^{-1}$.  In particular, we are interested in solving timestepping systems with CFL constants $C=10-20$, where 
+\[
+dt < C\LRb{u}\frac{h}{N^2}.
+\]
+Comparative CFL conditions for 
+\begin{align*}
+\alpha u + \div(\beta u) - \epsilon \Delta u &= f\\
+\left.u\right|_{\Gamma} = 0,
+\end{align*}
+
+Figure~\ref{fig:agmg_ref} shows AGMG behavior under both damped Jacobi and symmetric Gauss-Seidel smoothing for the elliptic problem when $\beta = (0,0)$ (i.e. implicit diffusion).  The parameters are varied as a function of mesh size $h$ and order $N$; the $\alpha$ is set as $\alpha = C h/N^2$, where $C$ is the desired CFL constant (varied between $1, 5, 10$ in these experiments).  $\epsilon$ is set as 
+\[
+\epsilon = C_\epsilon h/N,
+\]
+where $C_\epsilon = .2, 1, 5$, corresponding to slightly over-resolved, resolved, and slightly under-resolved regions.  $h$ is set to $1/4, 1/8, 1/16, 1/32$, and $N$ is set to relatively high values $N = 8, 10, 12, 14, 16$.   
+
+While AGMG doesn't show parameter-independent behavior, it does show relatively good independence on both $h$ and $N$ for fixed parameters.  
+\begin{figure}
+\subfigure[ GMRES with damped Jacobi smoothing]{\includegraphics[width=.49\textwidth]{ref_agmg_cd_DJ.eps}}
+\subfigure[ GMRES with symmetric Gauss-Seidel smoothing]{\includegraphics[width=.49\textwidth]{ref_agmg_cd_SymGS.eps}}
+\caption{Iterations to convergence for implicit diffusion under damped Jacobi and symmetric Gauss-Seidel smoothing.}
+\label{fig:agmg_ref}
+\end{figure}
+In Figure~\ref{fig:agmg_res}, the convection vector is set to $\beta = (1,0)$.  The behavior of AGMG is observed to depend more heavily on the parameters 
+
+Figure~\ref{fig:agmg_ratio} shows the ratio of the number of iterations to convergence for implicit convection-diffusion compared to implicit diffusion in order to illustrate the impact of nonsymmetry introduced by nonzero convection.  
+
+The addition of improved coarsening strategies for convection-diffusion problems may further improve performance \cite{notay2012aggregation}.
+\begin{figure}
+\subfigure[ GMRES with damped Jacobi smoothing]{\includegraphics[width=.49\textwidth]{res_agmg_cd_DJ.eps}}
+\subfigure[ GMRES with symmetric Gauss-Seidel smoothing]{\includegraphics[width=.49\textwidth]{res_agmg_cd_SymGS.eps}}
+\caption{Iterations to convergence for implicit convection-diffusion under damped Jacobi and symmetric Gauss-Seidel smoothing.}
+\label{fig:agmg_res}
+\end{figure}
+
+\begin{figure}
+\subfigure[ GMRES with damped Jacobi smoothing]{\includegraphics[width=.49\textwidth]{ratio_agmg_cd_DJ.eps}}
+\subfigure[ GMRES with symmetric Gauss-Seidel smoothing]{\includegraphics[width=.49\textwidth]{ratio_agmg_cd_SymGS.eps}}
+\caption{Ratio of iterations between convection-diffusion and elliptic problems under damped Jacobi and symmetric Gauss-Seidel smoothing.}
+\label{fig:agmg_ratio}
+\end{figure}
+
 \begin{enumerate}
 \item Document current AGMG verification ($h$ and $N$ independence)
 \item Compare AGMG/Wathen downwind GS
-\item Analyze static condensation case
+\item Figure out if we can do static condensation case/how to do matrix-free condensation?  
 \item Implement $A+A^T$ AGMG coarsening
-\end{enumerate}
-
-\subsection{AGMG}
-
-\subsubsection{Static condensation}
-
-Static condensation involves the representation of interior degrees of freedom (nodes in the interior of an element) in terms of globally coupled degrees of freedom through the local Schur complement.  
-
-Todos
-\begin{enumerate}
-\item Try iterative solver on single element system - how do you do matrix-free condensation?  
-\item Balance cost - what is the baseline?  Can we do a GPU workgroup implementation?  
 \end{enumerate}
 
 
