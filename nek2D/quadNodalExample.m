@@ -1,5 +1,7 @@
 function quadNodalExample
 
+addpath('BookCodes1D')
+
 % set up 1D operations
 N = 12; Np = N+1; Np2 = Np^2;
 
